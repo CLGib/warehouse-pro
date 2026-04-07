@@ -15,7 +15,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Warehouse Pro",
-  description: "Warehouse operations and inventory management",
+  description:
+    "Fast stowage and capacity planning for general cargo and port-adjacent warehouses—square feet, weight, cube, and time windows without container-only assumptions.",
 };
 
 export default function RootLayout({
