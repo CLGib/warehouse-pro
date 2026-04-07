@@ -1,3 +1,6 @@
+-- Run in Supabase → SQL Editor if these tables are not present yet.
+-- Matches the app’s expected public schema (PascalCase identifiers).
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL PRIMARY KEY,

@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
+import { newRowId, getSupabaseAdmin } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
@@ -17,19 +17,35 @@ export async function GET(req: Request) {
     );
   }
 
-  const wh = await prisma.plannerWarehouse.findFirst({
-    where: { id: warehouseId, userId: session.user.id },
-  });
+  const supabase = getSupabaseAdmin();
+
+  const { data: wh, error: whErr } = await supabase
+    .from("PlannerWarehouse")
+    .select("id")
+    .eq("id", warehouseId)
+    .eq("userId", session.user.id)
+    .maybeSingle();
+
+  if (whErr) {
+    console.error("cargo GET warehouse:", whErr);
+    return NextResponse.json({ error: "Database error" }, { status: 503 });
+  }
   if (!wh) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const cargoLots = await prisma.plannerCargoLot.findMany({
-    where: { warehouseId },
-    orderBy: { startAt: "asc" },
-  });
+  const { data: cargoLots, error } = await supabase
+    .from("PlannerCargoLot")
+    .select("*")
+    .eq("warehouseId", warehouseId)
+    .order("startAt", { ascending: true });
 
-  return NextResponse.json({ cargoLots });
+  if (error) {
+    console.error("cargo GET lots:", error);
+    return NextResponse.json({ error: "Database error" }, { status: 503 });
+  }
+
+  return NextResponse.json({ cargoLots: cargoLots ?? [] });
 }
 
 export async function POST(req: Request) {
@@ -46,9 +62,19 @@ export async function POST(req: Request) {
   }
 
   const warehouseId = String(body.warehouseId ?? "");
-  const wh = await prisma.plannerWarehouse.findFirst({
-    where: { id: warehouseId, userId: session.user.id },
-  });
+  const supabase = getSupabaseAdmin();
+
+  const { data: wh, error: whErr } = await supabase
+    .from("PlannerWarehouse")
+    .select("id")
+    .eq("id", warehouseId)
+    .eq("userId", session.user.id)
+    .maybeSingle();
+
+  if (whErr) {
+    console.error("cargo POST warehouse:", whErr);
+    return NextResponse.json({ error: "Database error" }, { status: 503 });
+  }
   if (!wh) {
     return NextResponse.json({ error: "Warehouse not found" }, { status: 404 });
   }
@@ -83,18 +109,31 @@ export async function POST(req: Request) {
     );
   }
 
-  const lot = await prisma.plannerCargoLot.create({
-    data: {
+  const id = newRowId();
+  const now = new Date().toISOString();
+
+  const { data: lot, error } = await supabase
+    .from("PlannerCargoLot")
+    .insert({
+      id,
       warehouseId,
       label,
       sqFt,
       weightLbs,
       stackHeightFt,
-      startAt,
-      endAt,
+      startAt: startAt.toISOString(),
+      endAt: endAt.toISOString(),
       priority,
-    },
-  });
+      createdAt: now,
+      updatedAt: now,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("cargo POST create:", error);
+    return NextResponse.json({ error: "Failed to create lot" }, { status: 503 });
+  }
 
   return NextResponse.json({ cargoLot: lot });
 }

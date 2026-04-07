@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -11,9 +11,19 @@ export async function PATCH(req: Request, ctx: Ctx) {
   }
 
   const { id } = await ctx.params;
-  const existing = await prisma.plannerWarehouse.findFirst({
-    where: { id, userId: session.user.id },
-  });
+  const supabase = getSupabaseAdmin();
+
+  const { data: existing, error: findErr } = await supabase
+    .from("PlannerWarehouse")
+    .select("*")
+    .eq("id", id)
+    .eq("userId", session.user.id)
+    .maybeSingle();
+
+  if (findErr) {
+    console.error("warehouse patch find:", findErr);
+    return NextResponse.json({ error: "Database error" }, { status: 503 });
+  }
   if (!existing) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -64,10 +74,20 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return NextResponse.json({ warehouse: existing });
   }
 
-  const warehouse = await prisma.plannerWarehouse.update({
-    where: { id },
-    data,
-  });
+  data.updatedAt = new Date().toISOString();
+
+  const { data: warehouse, error } = await supabase
+    .from("PlannerWarehouse")
+    .update(data)
+    .eq("id", id)
+    .eq("userId", session.user.id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("warehouse patch update:", error);
+    return NextResponse.json({ error: "Failed to update" }, { status: 503 });
+  }
 
   return NextResponse.json({ warehouse });
 }

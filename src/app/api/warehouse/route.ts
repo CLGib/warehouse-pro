@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
+import { newRowId, getSupabaseAdmin } from "@/lib/supabase/admin";
+import { listWarehousesWithCounts } from "@/lib/supabase/warehouses";
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -8,12 +9,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const warehouses = await prisma.plannerWarehouse.findMany({
-    where: { userId: session.user.id },
-    orderBy: { updatedAt: "desc" },
-    include: { _count: { select: { cargoLots: true } } },
-  });
-
+  const warehouses = await listWarehousesWithCounts(session.user.id);
   return NextResponse.json({ warehouses });
 }
 
@@ -57,8 +53,14 @@ export async function POST(req: Request) {
     );
   }
 
-  const w = await prisma.plannerWarehouse.create({
-    data: {
+  const supabase = getSupabaseAdmin();
+  const id = newRowId();
+  const now = new Date().toISOString();
+
+  const { data: w, error } = await supabase
+    .from("PlannerWarehouse")
+    .insert({
+      id,
       userId: session.user.id,
       name,
       sqFt,
@@ -67,8 +69,16 @@ export async function POST(req: Request) {
       loadFactor,
       bufferPct,
       clearanceUnderRoofFt,
-    },
-  });
+      createdAt: now,
+      updatedAt: now,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("warehouse create:", error);
+    return NextResponse.json({ error: "Failed to create warehouse" }, { status: 503 });
+  }
 
   return NextResponse.json({ warehouse: w });
 }

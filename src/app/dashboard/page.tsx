@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { computePlan } from "@/lib/planner/engine";
-import { prisma } from "@/lib/prisma";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { listWarehousesWithCounts } from "@/lib/supabase/warehouses";
 import { DashboardClient } from "./dashboard-client";
 
 export default async function DashboardPage() {
@@ -9,11 +10,7 @@ export default async function DashboardPage() {
     return null;
   }
 
-  const warehouses = await prisma.plannerWarehouse.findMany({
-    where: { userId: session.user.id },
-    orderBy: { updatedAt: "desc" },
-    include: { _count: { select: { cargoLots: true } } },
-  });
+  const warehouses = await listWarehousesWithCounts(session.user.id);
 
   const selectedId = warehouses[0]?.id ?? null;
 
@@ -32,20 +29,28 @@ export default async function DashboardPage() {
 
   if (selectedId) {
     const wh = warehouses.find((w) => w.id === selectedId);
-    const lots = await prisma.plannerCargoLot.findMany({
-      where: { warehouseId: selectedId },
-      orderBy: { startAt: "asc" },
-    });
+    const supabase = getSupabaseAdmin();
+    const { data: lots, error } = await supabase
+      .from("PlannerCargoLot")
+      .select("*")
+      .eq("warehouseId", selectedId)
+      .order("startAt", { ascending: true });
 
-    initialCargo = lots.map((c) => ({
-      id: c.id,
-      label: c.label,
-      sqFt: c.sqFt,
-      weightLbs: c.weightLbs,
-      stackHeightFt: c.stackHeightFt,
-      startAt: c.startAt.toISOString(),
-      endAt: c.endAt.toISOString(),
-      priority: c.priority,
+    if (error) {
+      console.error("dashboard cargo load:", error);
+    }
+
+    const lotRows = lots ?? [];
+
+    initialCargo = lotRows.map((c) => ({
+      id: c.id as string,
+      label: c.label as string,
+      sqFt: c.sqFt as number,
+      weightLbs: c.weightLbs as number,
+      stackHeightFt: c.stackHeightFt as number,
+      startAt: new Date(c.startAt as string).toISOString(),
+      endAt: new Date(c.endAt as string).toISOString(),
+      priority: c.priority as number,
     }));
 
     if (wh) {
@@ -58,15 +63,15 @@ export default async function DashboardPage() {
           bufferPct: wh.bufferPct,
           clearanceUnderRoofFt: wh.clearanceUnderRoofFt,
         },
-        lots.map((c) => ({
-          id: c.id,
-          label: c.label,
-          sqFt: c.sqFt,
-          weightLbs: c.weightLbs,
-          stackHeightFt: c.stackHeightFt,
-          startAt: c.startAt,
-          endAt: c.endAt,
-          priority: c.priority,
+        lotRows.map((c) => ({
+          id: c.id as string,
+          label: c.label as string,
+          sqFt: c.sqFt as number,
+          weightLbs: c.weightLbs as number,
+          stackHeightFt: c.stackHeightFt as number,
+          startAt: new Date(c.startAt as string),
+          endAt: new Date(c.endAt as string),
+          priority: c.priority as number,
         })),
       );
     }

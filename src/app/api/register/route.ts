@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import { newRowId, getSupabaseAdmin } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
@@ -24,7 +24,14 @@ export async function POST(req: Request) {
   }
 
   try {
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const supabase = getSupabaseAdmin();
+
+    const { data: existing } = await supabase
+      .from("User")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
+
     if (existing) {
       return NextResponse.json(
         { error: "An account with that email already exists." },
@@ -33,10 +40,29 @@ export async function POST(req: Request) {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    const user = await prisma.user.create({
-      data: { email, passwordHash },
-      select: { id: true, email: true },
-    });
+    const id = newRowId();
+    const now = new Date().toISOString();
+
+    const { data: user, error } = await supabase
+      .from("User")
+      .insert({
+        id,
+        email,
+        passwordHash,
+        createdAt: now,
+      })
+      .select("id, email")
+      .single();
+
+    if (error) {
+      if (error.code === "23505") {
+        return NextResponse.json(
+          { error: "An account with that email already exists." },
+          { status: 409 },
+        );
+      }
+      throw error;
+    }
 
     return NextResponse.json({ user }, { status: 201 });
   } catch (error) {
@@ -44,7 +70,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         error:
-          "Cannot reach the database right now. Please confirm DATABASE_URL and try again.",
+          "Cannot reach the database right now. Check NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.",
       },
       { status: 503 },
     );

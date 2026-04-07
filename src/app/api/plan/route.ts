@@ -1,6 +1,6 @@
 import { auth } from "@/auth";
 import { computePlan } from "@/lib/planner/engine";
-import { prisma } from "@/lib/prisma";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
@@ -18,34 +18,59 @@ export async function GET(req: Request) {
     );
   }
 
-  const wh = await prisma.plannerWarehouse.findFirst({
-    where: { id: warehouseId, userId: session.user.id },
-    include: { cargoLots: true },
-  });
+  const supabase = getSupabaseAdmin();
+
+  const { data: wh, error: whErr } = await supabase
+    .from("PlannerWarehouse")
+    .select("*")
+    .eq("id", warehouseId)
+    .eq("userId", session.user.id)
+    .maybeSingle();
+
+  if (whErr) {
+    console.error("plan GET warehouse:", whErr);
+    return NextResponse.json({ error: "Database error" }, { status: 503 });
+  }
   if (!wh) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const { data: cargoRows, error: cargoErr } = await supabase
+    .from("PlannerCargoLot")
+    .select("*")
+    .eq("warehouseId", warehouseId)
+    .order("startAt", { ascending: true });
+
+  if (cargoErr) {
+    console.error("plan GET cargo:", cargoErr);
+    return NextResponse.json({ error: "Database error" }, { status: 503 });
+  }
+
+  const cargoLots = cargoRows ?? [];
+
   const plan = computePlan(
     {
-      sqFt: wh.sqFt,
-      floorStrengthPsf: wh.floorStrengthPsf,
-      roofHeightFt: wh.roofHeightFt,
-      loadFactor: wh.loadFactor,
-      bufferPct: wh.bufferPct,
-      clearanceUnderRoofFt: wh.clearanceUnderRoofFt,
+      sqFt: wh.sqFt as number,
+      floorStrengthPsf: wh.floorStrengthPsf as number,
+      roofHeightFt: wh.roofHeightFt as number,
+      loadFactor: wh.loadFactor as number,
+      bufferPct: wh.bufferPct as number,
+      clearanceUnderRoofFt: wh.clearanceUnderRoofFt as number,
     },
-    wh.cargoLots.map((c) => ({
-      id: c.id,
-      label: c.label,
-      sqFt: c.sqFt,
-      weightLbs: c.weightLbs,
-      stackHeightFt: c.stackHeightFt,
-      startAt: c.startAt,
-      endAt: c.endAt,
-      priority: c.priority,
+    cargoLots.map((c) => ({
+      id: c.id as string,
+      label: c.label as string,
+      sqFt: c.sqFt as number,
+      weightLbs: c.weightLbs as number,
+      stackHeightFt: c.stackHeightFt as number,
+      startAt: new Date(c.startAt as string),
+      endAt: new Date(c.endAt as string),
+      priority: c.priority as number,
     })),
   );
 
-  return NextResponse.json({ plan, warehouse: { id: wh.id, name: wh.name } });
+  return NextResponse.json({
+    plan,
+    warehouse: { id: wh.id as string, name: wh.name as string },
+  });
 }
