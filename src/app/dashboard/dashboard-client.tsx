@@ -381,37 +381,44 @@ export function DashboardClient({
   async function addCargo(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!selectedId) return;
-    const fd = new FormData(e.currentTarget);
-    const startDate = String(fd.get("startDate") ?? "").trim();
-    const startTime = String(fd.get("startTime") ?? "").trim();
-    const endDate = String(fd.get("endDate") ?? "").trim();
-    const endTime = String(fd.get("endTime") ?? "").trim();
-    if (!startDate || !startTime || !endDate || !endTime) {
-      setError("Please enter a complete start/end date and time.");
-      return;
-    }
+    try {
+      const fd = new FormData(e.currentTarget);
+      const startDate = String(fd.get("startDate") ?? "").trim();
+      const startTime = String(fd.get("startTime") ?? "").trim();
+      const endDate = String(fd.get("endDate") ?? "").trim();
+      const endTime = String(fd.get("endTime") ?? "").trim();
+      if (!startDate || !startTime || !endDate || !endTime) {
+        setError("Please enter a complete start/end date and time.");
+        return;
+      }
 
-    const body = {
-      warehouseId: selectedId,
-      label: fd.get("label"),
-      sqFt: Number(fd.get("sqFt")),
-      weightLbs: Number(fd.get("weightLbs")),
-      stackHeightFt: Number(fd.get("stackHeightFt")),
-      priority: Number(fd.get("priority")),
-      startAt: `${startDate}T${startTime}`,
-      endAt: `${endDate}T${endTime}`,
-    };
-    const res = await fetch("/api/cargo", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      setError("Could not add cargo.");
-      return;
+      const body = {
+        warehouseId: selectedId,
+        label: fd.get("label"),
+        sqFt: Number(fd.get("sqFt")),
+        weightLbs: Number(fd.get("weightLbs")),
+        stackHeightFt: Number(fd.get("stackHeightFt")),
+        priority: Number(fd.get("priority")),
+        startAt: `${startDate}T${startTime}`,
+        endAt: `${endDate}T${endTime}`,
+      };
+      const res = await fetch("/api/cargo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        setError(payload?.error ?? `Could not add cargo (HTTP ${res.status}).`);
+        return;
+      }
+      e.currentTarget.reset();
+      await refreshAll();
+    } catch {
+      setError("Could not add cargo. Check connection and try again.");
     }
-    e.currentTarget.reset();
-    await refreshAll();
   }
 
   async function removeCargo(id: string) {
