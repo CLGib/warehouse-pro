@@ -3,7 +3,8 @@
 import type { PlanResult } from "@/lib/planner/engine";
 import { signOut, useSession } from "next-auth/react";
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { WarehouseVisualization } from "./warehouse-visualization";
 
 type Warehouse = {
   id: string;
@@ -28,12 +29,28 @@ type CargoLot = {
   priority: number;
 };
 
+type CargoKind = "bagged" | "palletized" | "breakbulk" | "loose";
+
 type Props = {
   initialWarehouses: Warehouse[];
   initialSelectedId: string | null;
   initialCargo: CargoLot[];
   initialPlan: PlanResult | null;
 };
+
+function detectCargoKind(label: string): CargoKind {
+  const l = label.toLowerCase();
+  if (l.includes("bag") || l.includes("sack") || l.includes("grain")) {
+    return "bagged";
+  }
+  if (l.includes("pallet") || l.includes("skid")) {
+    return "palletized";
+  }
+  if (l.includes("crate") || l.includes("drum") || l.includes("bundle")) {
+    return "breakbulk";
+  }
+  return "loose";
+}
 
 export function DashboardClient({
   initialWarehouses,
@@ -47,8 +64,205 @@ export function DashboardClient({
   const [cargo, setCargo] = useState(initialCargo);
   const [plan, setPlan] = useState<PlanResult | null>(initialPlan);
   const [error, setError] = useState<string | null>(null);
+  const [segmentIndex, setSegmentIndex] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const selected = warehouses.find((w) => w.id === selectedId) ?? null;
+  const estimatedOccupiedSqFt = cargo.reduce((sum, lot) => sum + lot.sqFt, 0);
+  const zones = useMemo(
+    () => [
+      {
+        id: "Receiving",
+        label: "Receiving",
+        x: 5,
+        y: 5,
+        width: 22,
+        height: 18,
+        utilization: Math.min(
+          1,
+          estimatedOccupiedSqFt / Math.max(1, (selected?.sqFt ?? 1) * 0.28),
+        ),
+      },
+      {
+        id: "Rack A",
+        label: "Rack A",
+        x: 31,
+        y: 5,
+        width: 20,
+        height: 24,
+        utilization: Math.min(
+          1,
+          estimatedOccupiedSqFt / Math.max(1, (selected?.sqFt ?? 1) * 0.32),
+        ),
+      },
+      {
+        id: "Rack B",
+        label: "Rack B",
+        x: 54,
+        y: 5,
+        width: 20,
+        height: 24,
+        utilization: Math.min(
+          1,
+          estimatedOccupiedSqFt / Math.max(1, (selected?.sqFt ?? 1) * 0.35),
+        ),
+      },
+      {
+        id: "Staging",
+        label: "Staging",
+        x: 77,
+        y: 5,
+        width: 18,
+        height: 18,
+        utilization: Math.min(
+          1,
+          estimatedOccupiedSqFt / Math.max(1, (selected?.sqFt ?? 1) * 0.25),
+        ),
+      },
+      {
+        id: "Bag Stacks",
+        label: "Bag Stacks",
+        x: 5,
+        y: 28,
+        width: 22,
+        height: 28,
+        utilization: Math.min(
+          1,
+          estimatedOccupiedSqFt / Math.max(1, (selected?.sqFt ?? 1) * 0.3),
+        ),
+      },
+      {
+        id: "Packout",
+        label: "Packout",
+        x: 31,
+        y: 34,
+        width: 28,
+        height: 22,
+        utilization: Math.min(
+          1,
+          estimatedOccupiedSqFt / Math.max(1, (selected?.sqFt ?? 1) * 0.22),
+        ),
+      },
+      {
+        id: "Returns",
+        label: "Returns",
+        x: 63,
+        y: 34,
+        width: 22,
+        height: 22,
+        utilization: Math.min(
+          1,
+          estimatedOccupiedSqFt / Math.max(1, (selected?.sqFt ?? 1) * 0.2),
+        ),
+      },
+    ],
+    [estimatedOccupiedSqFt, selected?.sqFt],
+  );
+  const doors = [
+    {
+      id: "door-1",
+      label: "Dock 1",
+      side: "top" as const,
+      offset: 0.14,
+      isOpen: !!plan && !plan.summary.anyHeightIssue,
+    },
+    {
+      id: "door-2",
+      label: "Dock 2",
+      side: "top" as const,
+      offset: 0.36,
+      isOpen: cargo.length % 2 === 0,
+    },
+    {
+      id: "door-3",
+      label: "Dock 3",
+      side: "right" as const,
+      offset: 0.4,
+      isOpen: cargo.length > 0,
+    },
+    {
+      id: "door-4",
+      label: "Personnel",
+      side: "bottom" as const,
+      offset: 0.8,
+      isOpen: !!selected && selected._count?.cargoLots !== 0,
+    },
+  ];
+  const openDoors = doors.filter((d) => d.isOpen).length;
+  const doorOpenRatio = doors.length > 0 ? openDoors / doors.length : 0;
+  const segments = plan?.segments ?? [];
+  const clampedSegmentIndex =
+    segments.length > 0 ? Math.min(segmentIndex, segments.length - 1) : 0;
+  const activeSegment = segments[clampedSegmentIndex] ?? null;
+  const activeCargo = useMemo(() => {
+    if (!activeSegment) return [];
+    return cargo.filter((c) => activeSegment.activeIds.includes(c.id));
+  }, [activeSegment, cargo]);
+
+  const intervalLabel = activeSegment
+    ? `${new Date(activeSegment.start).toLocaleString()} -> ${new Date(activeSegment.end).toLocaleString()}`
+    : "No interval selected";
+
+  const placements = useMemo(() => {
+    if (!activeCargo.length) return [];
+    const zoneCapacities = zones.map((z) => ({
+      id: z.id,
+      label: z.label,
+      remaining: (selected?.sqFt ?? 0) * (z.width * z.height) / 6200,
+    }));
+    const prioritized = [...activeCargo].sort((a, b) => b.priority - a.priority);
+    const result: Array<{
+      cargoId: string;
+      label: string;
+      zoneId: string;
+      sqFt: number;
+      kind: CargoKind;
+    }> = [];
+
+    const preferredZones: Record<CargoKind, string[]> = {
+      bagged: ["Bag Stacks", "Staging", "Returns"],
+      palletized: ["Rack A", "Rack B", "Staging"],
+      breakbulk: ["Receiving", "Staging", "Packout"],
+      loose: ["Staging", "Returns", "Receiving"],
+    };
+
+    for (const lot of prioritized) {
+      const kind = detectCargoKind(lot.label);
+      let remaining = lot.sqFt;
+      const ordered = [
+        ...preferredZones[kind]
+          .map((id) => zoneCapacities.find((z) => z.id === id))
+          .filter((z): z is (typeof zoneCapacities)[number] => !!z),
+        ...zoneCapacities.filter((z) => !preferredZones[kind].includes(z.id)),
+      ];
+
+      for (const zone of ordered) {
+        if (remaining <= 0) break;
+        if (zone.remaining <= 0) continue;
+        const allocated = Math.min(remaining, zone.remaining);
+        if (allocated > 0) {
+          result.push({
+            cargoId: lot.id,
+            label: lot.label,
+            zoneId: zone.id,
+            sqFt: allocated,
+            kind,
+          });
+          zone.remaining -= allocated;
+          remaining -= allocated;
+        }
+      }
+    }
+    return result;
+  }, [activeCargo, zones, selected?.sqFt]);
+
+  useEffect(() => {
+    if (!isPlaying || segments.length <= 1) return;
+    const timer = setInterval(() => {
+      setSegmentIndex((prev) => (prev + 1) % segments.length);
+    }, 1500);
+    return () => clearInterval(timer);
+  }, [isPlaying, segments.length]);
 
   const loadCargo = useCallback(async (warehouseId: string) => {
     const res = await fetch(`/api/cargo?warehouseId=${warehouseId}`);
@@ -617,6 +831,51 @@ export function DashboardClient({
             <p className="mt-2 text-sm text-muted">No plan data.</p>
           )}
         </section>
+
+        {selected ? (
+          <WarehouseVisualization
+            warehouseName={selected.name}
+            totalSqFt={selected.sqFt}
+            occupiedSqFt={activeSegment?.totals.sqFt ?? estimatedOccupiedSqFt}
+            doorOpenRatio={doorOpenRatio}
+            zones={zones}
+            doors={doors}
+            placements={placements}
+            intervalLabel={intervalLabel}
+          />
+        ) : null}
+
+        {selected && segments.length > 0 ? (
+          <section className="mt-6 pb-16">
+            <h3 className="text-sm font-semibold text-foreground">
+              Build sequence playback
+            </h3>
+            <p className="mt-1 text-xs text-muted">
+              Step through intervals to visualize general-cargo stow as it builds
+              (including bagged and breakbulk cargo).
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsPlaying((p) => !p)}
+                className="rounded-lg border border-foreground/20 px-3 py-1.5 text-xs font-medium hover:bg-foreground/5"
+              >
+                {isPlaying ? "Pause" : "Play"}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={Math.max(0, segments.length - 1)}
+                value={clampedSegmentIndex}
+                onChange={(e) => setSegmentIndex(Number(e.currentTarget.value))}
+                className="w-full max-w-xl"
+              />
+              <span className="text-xs text-muted">
+                Interval {clampedSegmentIndex + 1} / {segments.length}
+              </span>
+            </div>
+          </section>
+        ) : null}
       </div>
     </div>
   );

@@ -33,6 +33,45 @@ export function LoginForm() {
     }
   }
 
+  async function createAccount() {
+    setError(null);
+    if (!email.trim() || !password) {
+      setError("Enter an email and password to create an account.");
+      return;
+    }
+
+    setPending(true);
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        setError(data?.error ?? "Could not create account.");
+        return;
+      }
+
+      const signInResult = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+        callbackUrl,
+      });
+      if (signInResult?.error) {
+        setError("Account created. Please sign in.");
+        return;
+      }
+      window.location.href = callbackUrl;
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <div>
@@ -82,6 +121,14 @@ export function LoginForm() {
         className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
       >
         {pending ? "Signing in…" : "Sign in"}
+      </button>
+      <button
+        type="button"
+        onClick={() => void createAccount()}
+        disabled={pending}
+        className="w-full rounded-lg border border-foreground/20 px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-foreground/5 disabled:opacity-50"
+      >
+        {pending ? "Working…" : "Create free account"}
       </button>
     </form>
   );

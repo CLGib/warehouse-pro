@@ -16,8 +16,8 @@ const sections = [
         <strong>general cargo</strong>—metals, forest products, project cargo,
         bulk, autos, and similar—where utilization is driven by{" "}
         <strong>floor space, cube, weight, and lift units</strong>, not
-        container (TEU) counts. The Port of Mobile and Alabama Port Authority
-        ecosystem is a natural fit for this lens.
+        container (TEU) counts. Port-adjacent operations are a natural fit for
+        this lens.
       </>
     ),
   },
@@ -86,13 +86,13 @@ const sections = [
     ),
   },
   {
-    title: "How we can help Alabama Port Authority stakeholders",
+    title: "How we can help port-adjacent stakeholders",
     body: (
       <ul className="list-disc space-y-2 pl-5">
         <li>
           Translate this into a <strong>practical planning model</strong> and,
           when you are ready, software hooks (APIs and data rules) that respect
-          APA and tenant systems of record.
+          operator and tenant systems of record.
         </li>
         <li>
           Keep the conversation grounded in <strong>general cargo</strong>{" "}
@@ -131,15 +131,16 @@ export default function PresentPage() {
 
       <main className="mx-auto max-w-3xl px-6 py-14">
         <p className="text-sm font-medium text-accent">
-          Port of Mobile · Alabama Port Authority alignment
+          Port-adjacent alignment
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
           Warehouse utilization for general cargo
         </h1>
         <p className="mt-4 text-lg text-muted">
-          A concise picture of how disciplined capacity planning—reservations,
-          replanning, and spot rules—can support APA and tenant operations
-          without pretending one public API replaces your operational data.
+          A concise picture of how disciplined capacity planning-reservations,
+          replanning, and spot rules-can support tenant operations in
+          port-adjacent networks without pretending one public API replaces
+          your operational data.
         </p>
 
         <div className="mt-12 space-y-12">
@@ -157,35 +158,18 @@ export default function PresentPage() {
 
         <section className="mt-14 rounded-xl border border-foreground/15 bg-foreground/[0.03] p-6 sm:p-8">
           <h2 className="text-lg font-semibold text-foreground">
-            Suggested next step with APA
+            Suggested next step
           </h2>
           <p className="mt-2 text-muted">
-            Use the official{" "}
-            <a
-              href="https://alports.com/contact/"
-              className="font-medium text-accent underline-offset-2 hover:underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Alabama Port Authority contact page
-            </a>{" "}
-            to route your inquiry (headquarters: 250 N. Water Street, Mobile).
-            Offer a short meeting to walk this brief and map it to specific
-            sheds, tenants, and data owners—warehousing, terminal partners, and
-            commercial teams.
+            This product is built with port-adjacent workflows in mind, but it
+            is not official port authority software. Route formal inquiries
+            through official port channels and then offer a short meeting to
+            map this brief to specific sheds, tenants, and data owners:
+            warehousing, terminal partners, and commercial teams.
           </p>
           <p className="mt-4 text-sm text-muted">
-            Operational hotlines and port information (channel conditions,
-            security) are listed on{" "}
-            <a
-              href="https://alports.com/contact/"
-              className="text-accent underline-offset-2 hover:underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              alports.com/contact
-            </a>
-            ; use those channels for day-of port operations, not for this
+            Use official hotlines and port information channels (for channel
+            conditions and security) for day-of operations, not for this
             planning proposal unless directed.
           </p>
         </section>

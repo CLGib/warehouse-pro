@@ -27,7 +27,7 @@ export function BriefCallout() {
   return (
     <div className="rounded-xl border border-accent/35 bg-accent/10 px-4 py-4 sm:px-5">
       <p className="text-sm font-semibold text-foreground">
-        Port of Mobile · Alabama Port Authority brief
+        Port-adjacent context brief
       </p>
       <p className="mt-2 text-sm text-muted">
         Open the general-cargo warehouse capability page (not the GitHub template
@@ -38,13 +38,13 @@ export function BriefCallout() {
           href="/login"
           className="inline-flex w-fit items-center justify-center rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
         >
-          Sign in · live planner
+          Create your free account
         </Link>
         <Link
           href="/present"
           className="inline-flex w-fit items-center justify-center rounded-lg border border-foreground/20 px-4 py-2.5 text-sm font-medium text-foreground transition hover:bg-foreground/5"
         >
-          APA brief
+          Capability brief
         </Link>
         <Link
           href="/operator"

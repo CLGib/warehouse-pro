@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Warehouse operator playbook | Warehouse Pro",
   description:
-    "Practical levers for port-adjacent 3PL warehouses: utilization, dwell, reservations, spot cargo, and coordination with Port of Mobile flows.",
+    "Practical levers for port-adjacent 3PL warehouses: utilization, dwell, reservations, spot cargo, and coordination with local port flows.",
 };
 
 export default function OperatorPage() {
@@ -20,7 +20,7 @@ export default function OperatorPage() {
           </Link>
           <div className="flex flex-wrap gap-3 text-xs text-muted">
             <Link href="/present" className="text-accent hover:underline">
-              APA brief
+              Capability brief
             </Link>
           </div>
         </div>
@@ -35,7 +35,7 @@ export default function OperatorPage() {
         </h1>
         <p className="mt-4 text-lg text-muted">
           If you run space for customers tied to{" "}
-          <strong>Port of Mobile</strong> discharge—rail-served sheds, trucking,
+          <strong>local port</strong> discharge-rail-served sheds, trucking,
           drayage, commodity handling—the wins come from{" "}
           <strong>visible capacity</strong>, <strong>time-bound holds</strong>,
           and <strong>fast replanning</strong> when vessels or weather slip.
@@ -124,18 +124,11 @@ export default function OperatorPage() {
           <ul className="mt-3 list-disc space-y-2 pl-5 text-muted">
             <li>
               <Link href="/present" className="font-medium text-accent hover:underline">
-                Capability brief for Alabama Port Authority stakeholders
+                Capability brief for port-adjacent stakeholders
               </Link>
             </li>
             <li>
-              <a
-                href="https://alports.com/contact/"
-                className="font-medium text-accent hover:underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Alabama Port Authority — contact
-              </a>
+              Port authority contact channels
             </li>
           </ul>
         </section>

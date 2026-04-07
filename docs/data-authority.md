@@ -1,4 +1,4 @@
-# Data authority: who owns each feed (Port of Mobile context)
+# Data authority: who owns each feed (port-adjacent context)
 
 ## Cargo scope: general cargo (no containers)
 
@@ -33,4 +33,4 @@ CBP **ACE** and manifest filing are compliance channels, not a general-purpose p
 
 ## UN/LOCODE
 
-Standard port identifier for AIS queries: **USMOB** (Mobile, Alabama).
+Use your local port UN/LOCODE for AIS queries.
