@@ -69,6 +69,7 @@ export async function POST(req: Request) {
       loadFactor,
       bufferPct,
       clearanceUnderRoofFt,
+      doorLayout: null,
       createdAt: now,
       updatedAt: now,
     })

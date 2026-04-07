@@ -35,7 +35,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const data: Record<string, number | string> = {};
+  const data: Record<string, unknown> = {};
   if (body.name != null) data.name = String(body.name).trim();
   if (body.sqFt != null) {
     const v = Number(body.sqFt);
@@ -68,6 +68,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (body.bufferPct != null) data.bufferPct = Number(body.bufferPct);
   if (body.clearanceUnderRoofFt != null) {
     data.clearanceUnderRoofFt = Number(body.clearanceUnderRoofFt);
+  }
+  if (body.doorLayout != null) {
+    if (!Array.isArray(body.doorLayout)) {
+      return NextResponse.json({ error: "Invalid doorLayout" }, { status: 400 });
+    }
+    data.doorLayout = body.doorLayout;
   }
 
   if (Object.keys(data).length === 0) {

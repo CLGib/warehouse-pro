@@ -15,6 +15,7 @@ type Warehouse = {
   loadFactor: number;
   bufferPct: number;
   clearanceUnderRoofFt: number;
+  doorLayout?: unknown;
   _count?: { cargoLots: number };
 };
 
@@ -30,6 +31,30 @@ type CargoLot = {
 };
 
 type CargoKind = "bagged" | "palletized" | "breakbulk" | "loose";
+type DoorSide = "top" | "right" | "bottom" | "left";
+type DoorLayout = { id: string; label: string; side: DoorSide; offset: number };
+const DEFAULT_DOOR_LAYOUT: DoorLayout[] = [
+  { id: "door-1", label: "Dock 1", side: "top", offset: 0.14 },
+  { id: "door-2", label: "Dock 2", side: "top", offset: 0.36 },
+  { id: "door-3", label: "Dock 3", side: "right", offset: 0.4 },
+  { id: "door-4", label: "Personnel", side: "bottom", offset: 0.8 },
+];
+
+function isDoorLayout(value: unknown): value is DoorLayout[] {
+  if (!Array.isArray(value)) return false;
+  return value.every(
+    (d) =>
+      !!d &&
+      typeof d === "object" &&
+      typeof (d as { id?: unknown }).id === "string" &&
+      typeof (d as { label?: unknown }).label === "string" &&
+      (d as { side?: unknown }).side !== undefined &&
+      ["top", "right", "bottom", "left"].includes(
+        String((d as { side?: unknown }).side),
+      ) &&
+      typeof (d as { offset?: unknown }).offset === "number",
+  );
+}
 
 type Props = {
   initialWarehouses: Warehouse[];
@@ -66,6 +91,14 @@ export function DashboardClient({
   const [error, setError] = useState<string | null>(null);
   const [segmentIndex, setSegmentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const initialSelectedWarehouse = initialWarehouses.find(
+    (w) => w.id === initialSelectedId,
+  );
+  const [doorLayout, setDoorLayout] = useState<DoorLayout[]>(
+    isDoorLayout(initialSelectedWarehouse?.doorLayout)
+      ? (initialSelectedWarehouse.doorLayout as DoorLayout[])
+      : DEFAULT_DOOR_LAYOUT,
+  );
 
   const selected = warehouses.find((w) => w.id === selectedId) ?? null;
   const estimatedOccupiedSqFt = cargo.reduce((sum, lot) => sum + lot.sqFt, 0);
@@ -158,36 +191,17 @@ export function DashboardClient({
     ],
     [estimatedOccupiedSqFt, selected?.sqFt],
   );
-  const doors = [
-    {
-      id: "door-1",
-      label: "Dock 1",
-      side: "top" as const,
-      offset: 0.14,
-      isOpen: !!plan && !plan.summary.anyHeightIssue,
-    },
-    {
-      id: "door-2",
-      label: "Dock 2",
-      side: "top" as const,
-      offset: 0.36,
-      isOpen: cargo.length % 2 === 0,
-    },
-    {
-      id: "door-3",
-      label: "Dock 3",
-      side: "right" as const,
-      offset: 0.4,
-      isOpen: cargo.length > 0,
-    },
-    {
-      id: "door-4",
-      label: "Personnel",
-      side: "bottom" as const,
-      offset: 0.8,
-      isOpen: !!selected && selected._count?.cargoLots !== 0,
-    },
-  ];
+  const doors = doorLayout.map((d) => ({
+    ...d,
+    isOpen:
+      d.id === "door-1"
+        ? !!plan && !plan.summary.anyHeightIssue
+        : d.id === "door-2"
+          ? cargo.length % 2 === 0
+          : d.id === "door-3"
+            ? cargo.length > 0
+            : !!selected && selected._count?.cargoLots !== 0,
+  }));
   const openDoors = doors.filter((d) => d.isOpen).length;
   const doorOpenRatio = doors.length > 0 ? openDoors / doors.length : 0;
   const segments = plan?.segments ?? [];
@@ -281,6 +295,12 @@ export function DashboardClient({
   const selectWarehouse = useCallback(
     async (id: string) => {
       setSelectedId(id);
+      const warehouse = warehouses.find((w) => w.id === id);
+      if (isDoorLayout(warehouse?.doorLayout)) {
+        setDoorLayout(warehouse.doorLayout);
+      } else {
+        setDoorLayout(DEFAULT_DOOR_LAYOUT);
+      }
       setError(null);
       try {
         await Promise.all([loadCargo(id), loadPlan(id)]);
@@ -288,7 +308,7 @@ export function DashboardClient({
         setError("Could not load cargo or plan for that warehouse.");
       }
     },
-    [loadCargo, loadPlan],
+    [loadCargo, loadPlan, warehouses],
   );
 
   const refreshAll = useCallback(async () => {
@@ -362,6 +382,15 @@ export function DashboardClient({
     e.preventDefault();
     if (!selectedId) return;
     const fd = new FormData(e.currentTarget);
+    const startDate = String(fd.get("startDate") ?? "").trim();
+    const startTime = String(fd.get("startTime") ?? "").trim();
+    const endDate = String(fd.get("endDate") ?? "").trim();
+    const endTime = String(fd.get("endTime") ?? "").trim();
+    if (!startDate || !startTime || !endDate || !endTime) {
+      setError("Please enter a complete start/end date and time.");
+      return;
+    }
+
     const body = {
       warehouseId: selectedId,
       label: fd.get("label"),
@@ -369,8 +398,8 @@ export function DashboardClient({
       weightLbs: Number(fd.get("weightLbs")),
       stackHeightFt: Number(fd.get("stackHeightFt")),
       priority: Number(fd.get("priority")),
-      startAt: fd.get("startAt"),
-      endAt: fd.get("endAt"),
+      startAt: `${startDate}T${startTime}`,
+      endAt: `${endDate}T${endTime}`,
     };
     const res = await fetch("/api/cargo", {
       method: "POST",
@@ -394,11 +423,37 @@ export function DashboardClient({
     await refreshAll();
   }
 
+  async function persistDoorLayout(next: DoorLayout[]) {
+    if (!selected) return;
+    const res = await fetch(`/api/warehouse/${selected.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ doorLayout: next }),
+    });
+    if (!res.ok) {
+      setError("Could not save door layout.");
+      return;
+    }
+    const data = await res.json();
+    setWarehouses((prev) =>
+      prev.map((w) => (w.id === selected.id ? { ...w, ...data.warehouse } : w)),
+    );
+  }
+
   const toLocalInput = (iso: string) => {
     const d = new Date(iso);
     const pad = (n: number) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
+  const [defaultCargoTimes] = useState(() => {
+    const nowMs = Date.now();
+    return {
+      nowLocal: toLocalInput(new Date(nowMs).toISOString()),
+      plusOneDayLocal: toLocalInput(
+        new Date(nowMs + 24 * 60 * 60 * 1000).toISOString(),
+      ),
+    };
+  });
 
   return (
     <div className="min-h-screen bg-background px-6 py-10">
@@ -688,14 +743,30 @@ export function DashboardClient({
                 className="rounded-lg border border-foreground/20 bg-background px-3 py-2"
               />
               <input
-                name="startAt"
-                type="datetime-local"
+                name="startDate"
+                type="date"
+                defaultValue={defaultCargoTimes.nowLocal.slice(0, 10)}
                 required
                 className="rounded-lg border border-foreground/20 bg-background px-3 py-2"
               />
               <input
-                name="endAt"
-                type="datetime-local"
+                name="startTime"
+                type="time"
+                defaultValue={defaultCargoTimes.nowLocal.slice(11, 16)}
+                required
+                className="rounded-lg border border-foreground/20 bg-background px-3 py-2"
+              />
+              <input
+                name="endDate"
+                type="date"
+                defaultValue={defaultCargoTimes.plusOneDayLocal.slice(0, 10)}
+                required
+                className="rounded-lg border border-foreground/20 bg-background px-3 py-2"
+              />
+              <input
+                name="endTime"
+                type="time"
+                defaultValue={defaultCargoTimes.plusOneDayLocal.slice(11, 16)}
                 required
                 className="rounded-lg border border-foreground/20 bg-background px-3 py-2"
               />
@@ -831,6 +902,82 @@ export function DashboardClient({
             <p className="mt-2 text-sm text-muted">No plan data.</p>
           )}
         </section>
+
+        {selected ? (
+          <section className="mt-8 rounded-xl border border-foreground/10 p-4">
+            <h3 className="text-sm font-semibold text-foreground">Door layout</h3>
+            <p className="mt-1 text-xs text-muted">
+              Move doors on each wall with side and position controls.
+            </p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {doorLayout.map((door) => (
+                <div
+                  key={door.id}
+                  className="rounded-lg border border-foreground/10 p-3"
+                >
+                  <p className="text-xs font-medium text-foreground">{door.label}</p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <label className="text-xs text-muted" htmlFor={`${door.id}-side`}>
+                      Side
+                    </label>
+                    <select
+                      id={`${door.id}-side`}
+                      value={door.side}
+                      onChange={(e) =>
+                        {
+                          const next = doorLayout.map((d) =>
+                            d.id === door.id
+                              ? {
+                                  ...d,
+                                  side: e.currentTarget.value as DoorSide,
+                                }
+                              : d,
+                          );
+                          setDoorLayout(next);
+                          void persistDoorLayout(next);
+                        }
+                      }
+                      className="rounded-md border border-foreground/20 bg-background px-2 py-1 text-xs"
+                    >
+                      <option value="top">Top</option>
+                      <option value="right">Right</option>
+                      <option value="bottom">Bottom</option>
+                      <option value="left">Left</option>
+                    </select>
+                  </div>
+                  <div className="mt-3">
+                    <label
+                      className="mb-1 block text-xs text-muted"
+                      htmlFor={`${door.id}-offset`}
+                    >
+                      Position: {(door.offset * 100).toFixed(0)}%
+                    </label>
+                    <input
+                      id={`${door.id}-offset`}
+                      type="range"
+                      min={0.05}
+                      max={0.95}
+                      step={0.01}
+                      value={door.offset}
+                      onChange={(e) =>
+                        {
+                          const raw = Number(e.currentTarget.value);
+                          const clamped = Math.max(0.05, Math.min(0.95, raw));
+                          const next = doorLayout.map((d) =>
+                            d.id === door.id ? { ...d, offset: clamped } : d,
+                          );
+                          setDoorLayout(next);
+                          void persistDoorLayout(next);
+                        }
+                      }
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {selected ? (
           <WarehouseVisualization

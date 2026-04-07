@@ -21,6 +21,7 @@ CREATE TABLE "PlannerWarehouse" (
     "loadFactor" REAL NOT NULL DEFAULT 0.8,
     "bufferPct" REAL NOT NULL DEFAULT 0.1,
     "clearanceUnderRoofFt" REAL NOT NULL DEFAULT 2,
+    "doorLayout" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     CONSTRAINT "PlannerWarehouse_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE CASCADE ON UPDATE CASCADE

@@ -10,6 +10,7 @@ export type WarehouseWithCargoCount = {
   loadFactor: number;
   bufferPct: number;
   clearanceUnderRoofFt: number;
+  doorLayout: unknown;
   createdAt: string;
   updatedAt: string;
   _count: { cargoLots: number };
